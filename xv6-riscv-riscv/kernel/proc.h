@@ -120,5 +120,5 @@ struct proc
 
   uint runTime;
   uint createTime;
-  uint exitTime;
+  uint endTime;
 };

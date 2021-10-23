@@ -103,8 +103,7 @@ int allocpid()
 // If found, initialize state required to run in the kernel,
 // and return with p->lock held.
 // If there are no free procs, or a memory allocation fails, return 0.
-static struct proc *
-allocproc(void)
+static struct proc * allocproc(void)
 {
   struct proc *p;
 
@@ -148,6 +147,10 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+
+  p->runTime = 0;
+  p->createTime = ticks;
+  p->endTime = 0;
 
   return p;
 }
@@ -383,6 +386,7 @@ void exit(int status)
 
   p->xstate = status;
   p->state = ZOMBIE;
+  p->endTime = ticks;
 
   release(&wait_lock);
 
@@ -417,8 +421,8 @@ int wait(uint64 addr)
         {
           // Found one.
           pid = np->pid;
-          if (addr != 0 && copyout(p->pagetable, addr, (char *)&np->xstate,
-                                   sizeof(np->xstate)) < 0)
+
+          if (addr != 0 && copyout(p->pagetable, addr, (char *)&np->xstate, sizeof(np->xstate)) < 0)
           {
             release(&np->lock);
             release(&wait_lock);
@@ -442,6 +446,77 @@ int wait(uint64 addr)
 
     // Wait for a child to exit.
     sleep(p, &wait_lock); //DOC: wait-sleep
+  }
+}
+
+// Wait for a child process to exit and return its pid.
+// Return -1 if this process has no children.
+int waitx(uint64 addr, uint* runTime, uint* waitTime)
+{
+  struct proc *np;
+  int havekids, pid;
+  struct proc *p = myproc();
+
+  acquire(&wait_lock);
+
+  for (;;)
+  {
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for (np = proc; np < &proc[NPROC]; np++)
+    {
+      if (np->parent == p)
+      {
+        // make sure the child isn't still in exit() or swtch().
+        acquire(&np->lock);
+
+        havekids = 1;
+        if (np->state == ZOMBIE)
+        {
+          // Found one.
+          pid = np->pid;
+          *runTime = np->runTime;
+          *waitTime = np->endTime - np->createTime - np->runTime;
+
+          if (addr != 0 && copyout(p->pagetable, addr, (char *)&np->xstate, sizeof(np->xstate)) < 0)
+          {
+            release(&np->lock);
+            release(&wait_lock);
+            return -1;
+          }
+          freeproc(np);
+          release(&np->lock);
+          release(&wait_lock);
+          return pid;
+        }
+        release(&np->lock);
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if (!havekids || p->killed)
+    {
+      release(&wait_lock);
+      return -1;
+    }
+
+    // Wait for a child to exit.
+    sleep(p, &wait_lock); //DOC: wait-sleep
+  }
+}
+
+void updateTime()
+{
+  struct proc* p;
+
+  for(p = proc; p < &proc[NPROC]; p++)
+  {
+    acquire(&p->lock);
+    if(p->state == RUNNING)
+    {
+      p->runTime ++;
+    }
+    release(&p->lock);
   }
 }
 

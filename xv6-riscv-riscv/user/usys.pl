@@ -18,6 +18,7 @@ sub entry {
 entry("fork");
 entry("exit");
 entry("wait");
+entry("waitx");
 entry("pipe");
 entry("read");
 entry("write");
