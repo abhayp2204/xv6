@@ -6,6 +6,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "../user/trace.h"
 
 uint64
 sys_exit(void)
@@ -41,24 +42,23 @@ sys_wait(void)
 uint64
 sys_waitx(void)
 {
-  uint64 p, address1, address2;
+  uint64 address, address1, address2;
   uint runTime, waitTime;
 
-  if(argaddr(0, &p) < 0)
+  if(argaddr(0, &address) < 0)
     return -1;
   if(argaddr(1, &address1) < 0)
     return -1;
   if(argaddr(2, &address2) < 0)
     return -1;
 
+  int ret = waitx(address, &runTime, &waitTime);
+  struct proc* p = myproc();
 
-  int ret = waitx(p, &runTime, &waitTime);
-  
-  // struct proc* p = myproc();
-  // if(copyout(p->pagetable, address1, (char*)&waitTime, sizeof(int)) < 0)
-  //   return -1;
-  // if(copyout(p->pagetable, address2, (char*)&runTime, sizeof(int)) < 0)
-  //   return -1;
+  if(copyout(p->pagetable, address1, (char*)&waitTime, sizeof(int)) < 0)
+    return -1;
+  if(copyout(p->pagetable, address2, (char*)&runTime, sizeof(int)) < 0)
+    return -1;
   return ret;
 }
 
@@ -120,4 +120,15 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+uint64
+sys_strace(void)
+{
+  int mask = 0;
+  if(argint(0, &mask) < 0) return -1;
+  
+  struct proc* p = myproc();
+  p->mask = mask;
+  return 0;
 }

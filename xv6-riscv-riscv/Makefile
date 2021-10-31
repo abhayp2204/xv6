@@ -1,5 +1,6 @@
 K=kernel
 U=user
+SCHEDFALG = DEFAULT
 
 OBJS = \
   $K/entry.o \
@@ -50,18 +51,45 @@ endif
 
 QEMU = qemu-system-riscv64
 
+SCHEDULER_MACRO = -D RR
+ifeq ($(SCHEDULER), FCFS)
+	SCHEDULER_MACRO = -D FCFS
+endif
+ifeq ($(SCHEDULER), PBS)
+	SCHEDULER_MACRO = -D PBS
+endif
+ifeq ($(SCHEDULER), MLFQ)
+	SCHEDULER_MACRO = -D MLFQ
+endif
+
 CC = $(TOOLPREFIX)gcc
 AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
-CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb
+#Add appropriate macro according to SCHEDULER
+
+SCHEDULER = ROUNDROBIN
+# SCHEDULER = FCFS
+
+CFLAGS = -Wall -O -fno-omit-frame-pointer -ggdb
+CFLAGS += -D$(SCHEDULER)
 CFLAGS += -MD
 CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
 CFLAGS += -I.
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
+
+ifeq ($(SCHEDFLAG), FRR)
+    CFLAGS += -DSCHEDFLAGFRR
+else ifeq ($(SCHEDFLAG), FCFS)
+{
+	CFLAGS += -DSCHEDFLAGFCFS
+}
+else
+    CFLAGS += -DSCHEDFLAGDEFAULT
+endif
 
 # Disable PIE when possible (for Ubuntu 16.10 toolchain)
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]no-pie'),)
@@ -107,7 +135,7 @@ $U/_forktest: $U/forktest.o $(ULIB)
 	$(OBJDUMP) -S $U/_forktest > $U/forktest.asm
 
 mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
-	gcc -Werror -Wall -I. -o mkfs/mkfs mkfs/mkfs.c
+	gcc -Wall -I. -o mkfs/mkfs mkfs/mkfs.c
 
 # Prevent deletion of intermediate files, e.g. cat.o, after first build, so
 # that disk image changes after first build are persistent until clean.  More
@@ -132,6 +160,8 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
+	$U/_time\
+	$U/_strace\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

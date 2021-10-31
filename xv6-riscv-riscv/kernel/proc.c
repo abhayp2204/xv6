@@ -6,6 +6,12 @@
 #include "proc.h"
 #include "defs.h"
 
+struct
+{
+  struct spinlock lock;
+  struct proc proc[NPROC];
+}ptable;
+
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -103,7 +109,7 @@ int allocpid()
 // If found, initialize state required to run in the kernel,
 // and return with p->lock held.
 // If there are no free procs, or a memory allocation fails, return 0.
-static struct proc * allocproc(void)
+static struct proc *allocproc(void)
 {
   struct proc *p;
 
@@ -124,6 +130,7 @@ static struct proc * allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  p->traced = 0;
 
   // Allocate a trapframe page.
   if ((p->trapframe = (struct trapframe *)kalloc()) == 0)
@@ -148,9 +155,9 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
-  p->runTime = 0;
-  p->createTime = ticks;
-  p->endTime = 0;
+  p->rtime = 0;
+  p->ctime = ticks;
+  p->etime = 0;
 
   return p;
 }
@@ -282,6 +289,7 @@ int growproc(int n)
 
 // Create a new process, copying the parent.
 // Sets up child kernel stack to return as if from fork() system call.
+// Modify fork() to copy the trace mask from the parent to the child process.
 int fork(void)
 {
   int i, pid;
@@ -386,7 +394,7 @@ void exit(int status)
 
   p->xstate = status;
   p->state = ZOMBIE;
-  p->endTime = ticks;
+  p->etime = ticks;
 
   release(&wait_lock);
 
@@ -451,7 +459,7 @@ int wait(uint64 addr)
 
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
-int waitx(uint64 addr, uint* runTime, uint* waitTime)
+int waitx(uint64 addr, uint *rtime, uint *waitTime)
 {
   struct proc *np;
   int havekids, pid;
@@ -475,8 +483,11 @@ int waitx(uint64 addr, uint* runTime, uint* waitTime)
         {
           // Found one.
           pid = np->pid;
-          *runTime = np->runTime;
-          *waitTime = np->endTime - np->createTime - np->runTime;
+          *rtime = np->rtime;
+          *waitTime = np->etime - np->ctime - np->rtime;
+
+          // printf("rt = %d\n", *rtime);
+          // printf("wt = %d\n", *waitTime);
 
           if (addr != 0 && copyout(p->pagetable, addr, (char *)&np->xstate, sizeof(np->xstate)) < 0)
           {
@@ -505,39 +516,76 @@ int waitx(uint64 addr, uint* runTime, uint* waitTime)
   }
 }
 
+// Updates the run time of a process
 void updateTime()
 {
-  struct proc* p;
+  struct proc *p;
 
-  for(p = proc; p < &proc[NPROC]; p++)
+  for (p = proc; p < &proc[NPROC]; p++)
   {
     acquire(&p->lock);
-    if(p->state == RUNNING)
+    if (p->state == RUNNING)
     {
-      p->runTime ++;
+      p->rtime++;
     }
     release(&p->lock);
   }
 }
 
-// Per-CPU process scheduler.
-// Each CPU calls scheduler() after setting itself up.
-// Scheduler never returns.  It loops, doing:
-//  - choose a process to run.
-//  - swtch to start running that process.
-//  - eventually that process transfers control
-//    via swtch back to the scheduler.
 void scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-
   c->proc = 0;
+
   for (;;)
   {
-    // Avoid deadlock by ensuring that devices can interrupt.
+    // Enable interrupts on this processor.
     intr_on();
 
+//FCFS scheduling
+#ifdef FCFS
+    int minCtime = 0;
+    struct proc* minP = 0;
+
+    for(p = proc; p < &proc[NPROC]; p++) 
+    {
+      acquire(&p->lock);
+      if(p->state == RUNNABLE)
+      {
+        if(minCtime == 0 || minP == 0)
+        {
+          minCtime = p->ctime;
+          minP = p;
+        }
+        else if(minCtime > p->ctime)
+        {
+          minCtime = p->ctime;
+          minP = p;
+        }
+      }
+      release(&p->lock);
+    }
+    // if a runnable process was found then the one with minimum time is selected and switched into
+    if(minP != 0)
+    {
+      acquire(&minP->lock);
+      minP->state = RUNNING;
+      c->proc = minP;
+      swtch(&c->context, &minP->context);
+
+      c->proc = 0;
+      release(&minP->lock);
+    }
+//PBS scheduling
+#elif PBS
+    printf("PBS\n");
+//MLFQ scheduling
+#elif MLFQ
+    printf("MLFQ\n");
+// RR scheduling
+#else
+    // printf("RR\n");
     for (p = proc; p < &proc[NPROC]; p++)
     {
       acquire(&p->lock);
@@ -556,6 +604,7 @@ void scheduler(void)
       }
       release(&p->lock);
     }
+#endif
   }
 }
 

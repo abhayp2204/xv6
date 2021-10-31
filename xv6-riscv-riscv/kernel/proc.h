@@ -118,7 +118,14 @@ struct proc
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 
-  uint runTime;
-  uint createTime;
-  uint endTime;
+  uint rtime;                  // How long the process ran for
+  uint wtime;                  // How long did the process wait
+  uint ctime;                  // When was the process created
+  uint etime;                  // When did the process exit
+
+  uint traced;
+  uint mask;
+
+  uint priority;
+  uint rounds;
 };

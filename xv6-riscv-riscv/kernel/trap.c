@@ -76,9 +76,10 @@ usertrap(void)
   if(p->killed)
     exit(-1);
 
-  // give up the CPU if this is a timer interrupt.
+#if !defined FCFS || !defined PBS
   if(which_dev == 2)
     yield();
+#endif
 
   usertrapret();
 }
