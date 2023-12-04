@@ -6,7 +6,7 @@ Enhanced the existing XV6 Operating System, showcasing expertise in prominent op
 
 ### 1. strace
 * ``strace mask command [args]``
-* The mask identifies which system calls to trace. For instance, the mask `1000` traces the third system call.
+* The mask identifies which system calls to trace. For instance, the mask `1 << 3, or 1000` traces the third system call.
 * Keeps track of a process's system calls invoked during the process's execution.
 
 
