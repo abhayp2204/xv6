@@ -1,6 +1,6 @@
 # XV6 Operating System Extension
 
-This repository contains an extension of the XV6 operating system, introducing new features and improvements. The enhancements focus on providing additional system calls, incorporating new scheduling algorithms, and improving the handling of processes, jobs, signals, and I/O redirection.
+Enhanced the existing XV6 Operating System, showcasing expertise in prominent operating system domains including scheduling algorithms, system calls, handling of  jobs, signals, processes, and input-output redirection.
 
 ## Features
 
@@ -25,8 +25,6 @@ Developed a robust system capable of efficiently handling various tasks, includi
 - **Job Handling:** Implemented mechanisms to manage jobs efficiently, allowing users to monitor, control, and interact with running processes.
 
 - **Signal Handling:** Enhanced signal processing capabilities, providing better control over inter-process communication through signals.
-
-- **Built-in Commands:** Expanded the set of built-in commands, including functionalities such as changing directories (`cd`), displaying the current working directory (`pwd`), providing process information (`pinfo`), and managing jobs.
 
 - **I/O Redirection:** Improved I/O redirection through piping, enabling users to redirect input and output streams between processes seamlessly.
 
